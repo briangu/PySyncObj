@@ -14,9 +14,11 @@ class LockImpl(SyncObj):
         super(LockImpl, self).__init__(selfAddress, partnerAddrs)
         self.__locks = {}
         self.__autoUnlockTime = autoUnlockTime
+        self.__verbose = False
 
     @replicated
     def acquire(self, lockPath, clientID, currentTime):
+        print(f"lock: {lockPath}, {clientID}, {currentTime}")
         existingLock = self.__locks.get(lockPath, None)
         # Auto-unlock old lock
         if existingLock is not None:
@@ -31,7 +33,8 @@ class LockImpl(SyncObj):
 
     @replicated
     def ping(self, clientID, currentTime):
-        for lockPath in self.__locks.keys():
+        #print(f"ping: {clientID}, {currentTime}, {self.__locks}")
+        for lockPath in list(self.__locks.keys()):
             lockClientID, lockTime = self.__locks[lockPath]
 
             if currentTime - lockTime > self.__autoUnlockTime:
@@ -43,16 +46,34 @@ class LockImpl(SyncObj):
 
     @replicated
     def release(self, lockPath, clientID):
+        if self.__verbose:
+            print(f"release: {lockPath} {clientID}")
         existingLock = self.__locks.get(lockPath, None)
         if existingLock is not None and existingLock[0] == clientID:
             del self.__locks[lockPath]
 
-    def isAcquired(self, lockPath, clientID, currentTime):
+    @replicated
+    def toggle_verbose(self):
+        self.__verbose = not self.__verbose
+        print(f"verbose: {self.__verbose}")
+
+    def isOwned(self, lockPath, clientID, currentTime):
         existingLock = self.__locks.get(lockPath, None)
+        if self.__verbose:
+            print(existingLock, clientID)
         if existingLock is not None:
             if existingLock[0] == clientID:
                 if currentTime - existingLock[1] < self.__autoUnlockTime:
                     return True
+        return False
+
+    def isAcquired(self, lockPath, clientID, currentTime):
+        existingLock = self.__locks.get(lockPath, None)
+        if self.verbose:
+            print(existingLock, clientID)
+        if existingLock is not None:
+            if currentTime - existingLock[1] < self.__autoUnlockTime:
+                return True
         return False
 
 
@@ -85,6 +106,9 @@ class Lock(object):
 
     def isAcquired(self, path):
         return self.__lockImpl.isAcquired(path, self.__selfID, time.time())
+    
+    def isOwned(self, path):
+        return self.__lockImpl.isOwned(path, self.__selfID, time.time())
 
     def release(self, path):
         self.__lockImpl.release(path, self.__selfID)
@@ -92,6 +116,8 @@ class Lock(object):
     def printStatus(self):
         self.__lockImpl._printStatus()
 
+    def toggle_verbose(self):
+        self.__lockImpl.toggle_verbose()
 
 def printHelp():
     print('')
@@ -101,6 +127,8 @@ def printHelp():
     print('check lockPath       check if lock with lockPath path is ackquired or released')
     print('acquire lockPath     try to ackquire lock with lockPath')
     print('release lockPath     try to release lock with lockPath')
+    print('status               print lock status')
+    print('verbose              toggle verbose debugging')
     print('')
     print('')
 
@@ -121,6 +149,13 @@ def main():
         else:
             return raw_input(v)
 
+    def lock_status(path):
+        if lock.isOwned(path):
+            return "owned"
+        elif lock.isAcquired(path):
+            return "acquired"
+        return "released"
+
     printHelp()
     while True:
         cmd = get_input(">> ").split()
@@ -129,16 +164,21 @@ def main():
         elif cmd[0] == 'help':
             printHelp()
         elif cmd[0] == 'check':
-            print('acquired' if lock.isAcquired(cmd[1]) else 'released')
+            print(lock_status(cmd[1]))
         elif cmd[0] == 'acquire':
             lock.tryAcquireLock(cmd[1])
             time.sleep(1.5)
-            print('acquired' if lock.isAcquired(cmd[1]) else 'failed')
+            print(lock_status(cmd[1]))
         elif cmd[0] == 'release':
             lock.release(cmd[1])
             time.sleep(1.5)
-            print('acquired' if lock.isAcquired(cmd[1]) else 'released')
+            print(lock_status(cmd[1]))
+        elif cmd[0] == 'status':
+            lock.printStatus()
+        elif cmd[0] == 'verbose':
+            lock.toggle_verbose()
 
 
 if __name__ == '__main__':
     main()
+
