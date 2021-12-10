@@ -66,8 +66,8 @@ class LockImpl(SyncObj):
 
     def isOwned(self, lockPath, clientID, currentTime):
         existingLock = self.__locks.get(lockPath, None)
-        if self.__verbose:
-            print(existingLock, clientID)
+        # if self.__verbose:
+        #     print(existingLock, clientID)
         if existingLock is not None:
             if existingLock[0] == clientID:
                 if currentTime - existingLock[1] < self.__autoUnlockTime:
@@ -76,8 +76,8 @@ class LockImpl(SyncObj):
 
     def isAcquired(self, lockPath, clientID, currentTime):
         existingLock = self.__locks.get(lockPath, None)
-        if self.__verbose:
-            print(existingLock, clientID)
+        # if self.__verbose:
+        #     print(existingLock, clientID)
         if existingLock is not None:
             if currentTime - existingLock[1] < self.__autoUnlockTime:
                 return True
@@ -163,9 +163,11 @@ class Timer:
         self._task = asyncio.ensure_future(self._job())
 
     async def _job(self):
-        # await asyncio.sleep(self._timeout)
-        await self._callback()
-        self._task = asyncio.ensure_future(self._job())
+        while True:
+#            await asyncio.sleep(self._timeout)
+            await asyncio.sleep(0)
+            await self._callback()
+        # self._task = asyncio.ensure_future(self._job())
 
     def cancel(self):
         self._task.cancel()
@@ -190,12 +192,6 @@ async def main(sync_lock):
         elif sync_lock.isAcquired(path):
             return "acquired"
         return "released"
-
-    async def timeout_callback():
-        sync_lock.onTick()
-
-    # timer = Timer(conf.autoTickPeriod*2, timeout_callback)
-    timer = Timer(2, timeout_callback)
 
     printHelp()
     while True:
@@ -243,23 +239,46 @@ class StatusHandler(tornado.web.RequestHandler):
         self.write(str(self.sync_lock.getStatus()))
 
 
+class ToggleHandler(tornado.web.RequestHandler):
+    sync_lock = None
+
+    def initialize(self, sync_lock):
+        self.sync_lock = sync_lock
+
+    def get(self):
+        if self.sync_lock.isOwned("/dog"):
+            self.sync_lock.release("/dog")
+        else:
+            self.sync_lock.tryAcquireLock("/dog")
+        self.write("toggled") #str(self.sync_lock.isOwned("/dog")))
+
+
 def make_app(sync_lock):
     return tornado.web.Application([
         (r"/", MainHandler),
         (r"/status", StatusHandler, {'sync_lock': sync_lock}),
+        (r"/toggle", ToggleHandler, {'sync_lock': sync_lock}),
     ])
 
 
 if __name__ == "__main__":
 
+    print(f"{threading.get_ident()} main")
+
     selfAddr = sys.argv[1]
     partners = sys.argv[2:]
 
-    conf = SyncObjConf(autoTick=False)
+    conf = SyncObjConf(autoTick=True)
 
-    lock = Lock(selfAddr, partners, 10.0, conf=conf)
+    sync_lock = Lock(selfAddr, partners, 10.0, conf=conf)
 
-    app = make_app(lock)
+    # async def timeout_callback():
+    #     sync_lock.onTick()
+    #
+    # timer = Timer(conf.autoTickPeriod, timeout_callback)
+    # timer = Timer(2, timeout_callback)
+
+    app = make_app(sync_lock)
     selfAddr = int(sys.argv[1].split(":")[1]) + 1000
     print(f"port: {selfAddr}")
     app.listen(selfAddr)
@@ -267,7 +286,7 @@ if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(main(lock))
+        loop.run_until_complete(main(sync_lock))
     finally:
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
