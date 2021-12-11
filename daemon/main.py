@@ -1,8 +1,6 @@
 import time
 
-print(globals())
-print('mainCtrl' in globals())
 
-while mainCtrl.thread_continue:
+while main_control.thread_continue:
     print(f"hello")
     time.sleep(1)

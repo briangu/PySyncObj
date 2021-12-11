@@ -51,16 +51,10 @@ def main_thread(args, mainctrl, log):
         log.info("ARGS:{0}".format(args))
     try:
         with open(main_path, "r") as fp:
-            with open(fp.read(), "r") as f:
-                q = f.read()
-                print(q)
-                d = compile(q, 'main.py', 'exec')
-        print(d)
-        while mainctrl.thread_continue:
-            if verbose:
-                log.info("TOKEN:{0}".format(mainctrl.thread_token))
-            # time.sleep(1)
-            eval(d, {'mainCtrl': mainctrl})
+            fname = fp.read()
+            with open(fname, "r") as f:
+                d = compile(f.read(), fname, 'exec')
+        eval(d, {'main_control': mainctrl})
     except KeyboardInterrupt as ke:
         if verbose:
             log.warning("Interrupting...")
