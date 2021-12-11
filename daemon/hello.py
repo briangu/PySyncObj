@@ -14,6 +14,8 @@ import logging
 PROGNAME = 'monitor'
 PATHCTRL = '/tmp/'  # path to control files pid and lock
 logpath = os.path.join(PATHCTRL, PROGNAME + ".log")
+log_stdout = os.path.join(PATHCTRL, PROGNAME + ".out")
+log_stderr = os.path.join(PATHCTRL, PROGNAME + ".err")
 pidpath = os.path.join(PATHCTRL, PROGNAME + ".pid")
 parser = argparse.ArgumentParser(prog=PROGNAME)
 
@@ -75,27 +77,29 @@ def daemon_start(args=None):
         print("INFO: {0} already running (according to {1}).".format(PROGNAME, pidpath))
         sys.exit(1)
     else:
-        with daemon.DaemonContext(
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-                signal_map={
-                    signal.SIGTERM: main_thread_stop,
-                    signal.SIGTSTP: main_thread_stop,
-                    signal.SIGINT: main_thread_stop,
-                    # signal.SIGKILL: daemon_stop, #SIGKILL is an Invalid argument
-                    signal.SIGUSR1: daemon_status,
-                    signal.SIGUSR2: daemon_status,
-                },
-                pidfile=daemon.pidfile.PIDLockFile(pidpath)
-        ):
-            logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s {%(module)s} [%(funcName)s] %(message)s',
-                                datefmt='%Y-%m-%dT%H:%M:%S',
-                                filename=logpath,
-                                # filemode='w',
-                                level=logging.INFO)
+        with open(log_stdout, 'w') as f_stdout:
+            with open(log_stderr, 'w') as f_stderr:
+                with daemon.DaemonContext(
+                        stdout=f_stdout,
+                        stderr=f_stderr,
+                        signal_map={
+                            signal.SIGTERM: main_thread_stop,
+                            signal.SIGTSTP: main_thread_stop,
+                            signal.SIGINT: main_thread_stop,
+                            # signal.SIGKILL: daemon_stop, #SIGKILL is an Invalid argument
+                            signal.SIGUSR1: daemon_status,
+                            signal.SIGUSR2: daemon_status,
+                        },
+                        pidfile=daemon.pidfile.PIDLockFile(pidpath)
+                ):
+                    logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s {%(module)s} [%(funcName)s] %(message)s',
+                                        datefmt='%Y-%m-%dT%H:%M:%S',
+                                        filename=logpath,
+                                        # filemode='w',
+                                        level=logging.INFO)
 
-            log = logging.getLogger(__name__)
-            main_thread(args, mainctrl, log)
+                    log = logging.getLogger(__name__)
+                    main_thread(args, mainctrl, log)
 
 
 def daemon_restart(args):
