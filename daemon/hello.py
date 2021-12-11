@@ -8,7 +8,7 @@ import argparse
 import signal
 import logging
 
-# https://raw.githubusercontent.com/ggmartins/dataengbb/master/python/daemon/daemon1
+# adapted from https://raw.githubusercontent.com/ggmartins/dataengbb/master/python/daemon/daemon1
 
 
 PATHCTRL = '/tmp/'  # path to control files pid and lock
@@ -39,7 +39,7 @@ sp_debug.add_argument('path', type=str, help='path to daemon main file')
 
 class MainCtrl:
     thread_continue = True
-    thread_token = "token"
+    # thread_token = "token"
 
 
 def main_thread(args, mainctrl, log):
@@ -53,21 +53,20 @@ def main_thread(args, mainctrl, log):
     try:
         with open(main_path, "r") as fp:
             fname = fp.read()
+            if not os.path.exists(fname):
+                raise RuntimeError(f"main file path not found: {fname}")
             with open(fname, "r") as f:
                 d = compile(f.read(), fname, 'exec')
+            # TODO: make relative imports work
             # https://stackoverflow.com/questions/16981921/relative-imports-in-python-3
-            # sys.path.append(os.path.dirname(fname))
-
-        print(d)
         eval(d, {'main_control': mainctrl, '__name__': '__main__'})
     except KeyboardInterrupt as ke:
         if verbose:
             log.warning("Interrupting...")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(e)
         if verbose:
+            import traceback
+            traceback.print_exc()
             log.error("Exception:{0}".format(str(e)))
     log.info("Exiting...")
 
@@ -77,8 +76,8 @@ def daemon_start(args):
 
     def main_thread_stop(signum=None, frame=None):
         mainctrl.thread_continue = False
-        mainctrl.thread_token = "test"
-        print("TOKEN:{0}".format(mainctrl.thread_token))
+        # mainctrl.thread_token = "test"
+        # print("TOKEN:{0}".format(mainctrl.thread_token))
 
     if not os.path.exists(main_path):
         with open(main_path, "w") as f:
@@ -88,36 +87,42 @@ def daemon_start(args):
     if os.path.exists(pidpath):
         print("INFO: {0} already running (according to {1}).".format(args.name, pidpath))
         sys.exit(1)
-    else:
-        with open(log_stdout, 'w') as f_stdout:
-            with open(log_stderr, 'w') as f_stderr:
-                with daemon.DaemonContext(
-                        stdout=f_stdout,
-                        stderr=f_stderr,
-                        signal_map={
-                            signal.SIGTERM: main_thread_stop,
-                            signal.SIGTSTP: main_thread_stop,
-                            signal.SIGINT: main_thread_stop,
-                            # signal.SIGKILL: daemon_stop, #SIGKILL is an Invalid argument
-                            signal.SIGUSR1: daemon_status,
-                            signal.SIGUSR2: daemon_status,
-                        },
-                        pidfile=daemon.pidfile.PIDLockFile(pidpath)
-                ):
-                    logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s {%(module)s} [%(funcName)s] %(message)s',
-                                        datefmt='%Y-%m-%dT%H:%M:%S',
-                                        filename=logpath,
-                                        # filemode='w',
-                                        level=logging.INFO)
 
-                    log = logging.getLogger(__name__)
-                    main_thread(args, mainctrl, log)
+    with open(log_stdout, 'w') as f_stdout:
+        with open(log_stderr, 'w') as f_stderr:
+            with daemon.DaemonContext(
+                    stdout=f_stdout,
+                    stderr=f_stderr,
+                    signal_map={
+                        signal.SIGTERM: main_thread_stop,
+                        signal.SIGTSTP: main_thread_stop,
+                        signal.SIGINT: main_thread_stop,
+                        # signal.SIGKILL: daemon_stop, #SIGKILL is an Invalid argument
+                        signal.SIGUSR1: daemon_status,
+                        signal.SIGUSR2: daemon_status,
+                    },
+                    pidfile=daemon.pidfile.PIDLockFile(pidpath)
+            ):
+                logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s {%(module)s} [%(funcName)s] %(message)s',
+                                    datefmt='%Y-%m-%dT%H:%M:%S',
+                                    filename=logpath,
+                                    # filemode='w',
+                                    level=logging.INFO)
+
+                log = logging.getLogger(__name__)
+                main_thread(args, mainctrl, log)
 
 
 def daemon_restart(args):
     print("INFO: {0} Restarting...".format(args.name))
     daemon_stop(args)
-    time.sleep(1)
+
+    if not os.path.exists(main_path):
+        raise RuntimeError(f"missing main module path: {main_path}")
+
+    while os.path.exists(pidpath):
+        time.sleep(1)
+
     daemon_start(args)
 
 

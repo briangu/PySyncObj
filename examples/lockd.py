@@ -184,7 +184,14 @@ sync_lock = Lock(selfAddr, partners, 10.0, conf=conf)
 app = make_app(sync_lock)
 web_port = int(selfAddr.split(":")[1]) + 1000
 print(f"port: {web_port}")
-app.listen(web_port)
+while main_control.thread_continue:
+    try:
+        app.listen(web_port)
+        break
+    except Exception as e:
+        print(e)
+        time.sleep(1)
+
 print('here again')
 
 loop = asyncio.get_event_loop()
