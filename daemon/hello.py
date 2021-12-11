@@ -50,10 +50,16 @@ def main_thread(args, mainctrl, log):
     if verbose:
         log.info("ARGS:{0}".format(args))
     try:
+        with open("/home/brian/scm/PySyncObj/daemon/main.py", "r") as f:
+            q = f.read()
+            print(q)
+            d = compile(q, 'main.py', 'exec')
+        print(d)
         while mainctrl.thread_continue:
             if verbose:
                 log.info("TOKEN:{0}".format(mainctrl.thread_token))
-            time.sleep(1)
+            # time.sleep(1)
+            eval(d, {'mainCtrl': mainctrl})
     except KeyboardInterrupt as ke:
         if verbose:
             log.warning("Interrupting...")
