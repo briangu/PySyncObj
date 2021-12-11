@@ -32,6 +32,7 @@ sp_restart.add_argument('name', type=str, help='name of daemon')
 sp_debug = sp.add_parser('debug', help='Starts %(prog)s daemon in debug mode')
 sp_debug.add_argument('-v', '--verbose', action='store_true', help='log extra information')
 sp_debug.add_argument('name', type=str, help='name of daemon')
+sp_debug.add_argument('path', type=str, help='path to daemon main file')
 
 
 
@@ -54,11 +55,18 @@ def main_thread(args, mainctrl, log):
             fname = fp.read()
             with open(fname, "r") as f:
                 d = compile(f.read(), fname, 'exec')
-        eval(d, {'main_control': mainctrl})
+            # https://stackoverflow.com/questions/16981921/relative-imports-in-python-3
+            # sys.path.append(os.path.dirname(fname))
+
+        print(d)
+        eval(d, {'main_control': mainctrl, '__name__': '__main__'})
     except KeyboardInterrupt as ke:
         if verbose:
             log.warning("Interrupting...")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(e)
         if verbose:
             log.error("Exception:{0}".format(str(e)))
     log.info("Exiting...")
@@ -128,6 +136,9 @@ def daemon_stop(args):
 
 def daemon_debug(args):
     print("INFO: running in debug mode.")
+    if not os.path.exists(main_path):
+        with open(main_path, "w") as f:
+            f.write(args.path)
     log = logging.getLogger(__name__)
     mainctrl = MainCtrl()
     main_thread(args, mainctrl, log)
