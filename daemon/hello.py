@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys
+import threading
 import time
 import daemon
 import daemon.pidfile
@@ -77,6 +78,7 @@ def daemon_start(args):
 
     def main_thread_stop(signum=None, frame=None):
         mainctrl.thread_continue = False
+        threading.main_thread().is_alive()
         # mainctrl.thread_token = "test"
         # print("TOKEN:{0}".format(mainctrl.thread_token))
 

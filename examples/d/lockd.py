@@ -7,7 +7,7 @@ import time
 
 import tornado.web
 
-# from .lock import Lock
+from lock import Lock
 from pysyncobj import SyncObjConf
 
 
@@ -48,35 +48,36 @@ def make_app(sync_lock):
     ])
 
 
-async def main():
+async def wait_for_exit(main_control):
     while main_control.thread_continue:
         await asyncio.sleep(1)
 
-print(f"{threading.get_ident()} main")
+def main(main_control):
+    print(f"{threading.get_ident()} main")
 
-selfAddr = "localhost:10000"
-partners = ['localhost:10001', 'localhost:10002']
+    selfAddr = "localhost:10000"
+    partners = ['localhost:10001', 'localhost:10002']
 
-conf = SyncObjConf(autoTick=True)
+    conf = SyncObjConf(autoTick=True)
 
-sync_lock = Lock(selfAddr, partners, 10.0, conf=conf)
+    sync_lock = Lock(selfAddr, partners, 10.0, conf=conf)
 
-app = make_app(sync_lock)
-web_port = int(selfAddr.split(":")[1]) + 1000
-print(f"port: {web_port}")
-while main_control.thread_continue:
+    app = make_app(sync_lock)
+    web_port = int(selfAddr.split(":")[1]) + 1000
+    print(f"port: {web_port}")
+    while main_control.thread_continue:
+        try:
+            app.listen(web_port)
+            break
+        except Exception as e:
+            print(e)
+            time.sleep(1)
+
+    print('here again')
+
+    loop = asyncio.get_event_loop()
     try:
-        app.listen(web_port)
-        break
-    except Exception as e:
-        print(e)
-        time.sleep(1)
-
-print('here again')
-
-loop = asyncio.get_event_loop()
-try:
-    loop.run_until_complete(main())
-finally:
-    loop.run_until_complete(loop.shutdown_asyncgens())
-    loop.close()
+        loop.run_until_complete(wait_for_exit(main_control))
+    finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.close()
