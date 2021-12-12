@@ -59,7 +59,8 @@ def main_thread(args, mainctrl, log):
                 d = compile(f.read(), fname, 'exec')
             # TODO: make relative imports work
             # https://stackoverflow.com/questions/16981921/relative-imports-in-python-3
-        eval(d, {'main_control': mainctrl, '__name__': '__main__'})
+            # https://stackoverflow.com/questions/19850143/how-to-compile-a-string-of-python-code-into-a-module-whose-functions-can-be-call
+        exec(d, {'main_control': mainctrl, '__name__': '__main__'})
     except KeyboardInterrupt as ke:
         if verbose:
             log.warning("Interrupting...")
